@@ -512,6 +512,49 @@ describe("@types/bun integration test", () => {
     });
   });
 
+  describe("core-js type compatibility", () => {
+    // Reproduces the core-js pattern that triggers TS2430 when bun-types
+    // deviates from the spec. core-js's build step generates ponyfill
+    // constructors that extend global built-in interfaces (e.g.
+    // CoreJSPromiseConstructor extends PromiseConstructor). If bun-types
+    // has wrong signatures, these extends checks fail.
+    // See: https://github.com/oven-sh/bun/issues/26868
+    typeTest("bun-types signatures are compatible with core-js extends pattern", {
+      options: {
+        // Use no lib so only bun-types declarations are visible. With ESNext,
+        // TypeScript's own lib.es2024 provides correct overloads that mask
+        // bun-types bugs during extends checks.
+        lib: [],
+      },
+      files: {
+        "core-js-extends-check.ts": `
+          // The resolve parameter must be non-optional (required) per the spec.
+          // core-js's CoreJSPromiseConstructor extends PromiseConstructor with
+          // this signature — if bun-types makes resolve optional, this fails with TS2430.
+          interface StrictPromiseWithResolvers<T> {
+            promise: Promise<T>;
+            resolve: (value: T | PromiseLike<T>) => void;
+            reject: (reason?: any) => void;
+          }
+          interface StrictPromiseConstructor extends PromiseConstructor {
+            withResolvers<T>(): StrictPromiseWithResolvers<T>;
+          }
+
+          // ArrayBuffer.resize must return void per the spec.
+          // If bun-types returns ArrayBuffer instead, this fails with TS2430.
+          interface StrictArrayBuffer extends ArrayBuffer {
+            resize(newByteLength?: number): void;
+          }
+        `,
+      },
+      emptyInterfaces: expectedEmptyInterfacesWhenNoDOM,
+      diagnostics: diagnostics => {
+        const relevantDiagnostics = diagnostics.filter(d => d.line?.startsWith("core-js-extends-check.ts"));
+        expect(relevantDiagnostics).toEqual([]);
+      },
+    });
+  });
+
   describe("lib configuration", () => {
     typeTest("checks with no lib at all", {
       options: {
