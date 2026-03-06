@@ -32,6 +32,12 @@ jobs:
           supermodel-api-key: ${{ secrets.SUPERMODEL_API_KEY }}
           base-url: /bun/
 
+      - name: Diagnose output
+        run: |
+          echo "Total files: $(find ./arch-docs-output -type f | wc -l)"
+          echo "By extension:"
+          find ./arch-docs-output -type f | sed 's/.*\.//' | sort | uniq -c | sort -rn | head -20
+
       - name: Install wrangler
         run: npm install -g wrangler@3
 
